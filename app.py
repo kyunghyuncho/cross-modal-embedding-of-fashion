@@ -158,7 +158,11 @@ def main():
         sample_size = st.sidebar.slider("Sample Size", 10, 500, 50)
         
         import random
-        random_indices = random.sample(range(len(dataset)), min(sample_size, len(dataset)))
+        if "eda_indices" not in st.session_state or st.session_state.get("eda_sample_size") != sample_size:
+            st.session_state.eda_indices = random.sample(range(len(dataset)), min(sample_size, len(dataset)))
+            st.session_state.eda_sample_size = sample_size
+            
+        random_indices = st.session_state.eda_indices
         subset = dataset.select(random_indices)
         df = subset.to_pandas()
         
@@ -338,21 +342,20 @@ def main():
                         "--batch_size", str(batch_size),
                         "--lr", str(lr)
                     ], env=env)
-                    import time
-                    time.sleep(1)
                     st.rerun()
             else:
                 st.info("Training is currently active in the background.")
                 if st.button("⏹️ Stop Training", type="primary", use_container_width=True):
                     with open("lightning_logs/stop.flag", "w") as f:
                         f.write("stop")
-                    st.warning("Stop signal sent. Waiting for batch completion...")
-                    import time
-                    time.sleep(2)
+                    st.warning("Stop signal sent. Wait a moment for the process to exit.")
                     st.rerun()
                     
         with col2:
             st.markdown("### Live Optimization Metrics")
+            if is_running:
+                st.button("🔄 Check Latest Metrics", use_container_width=True)
+                
             if os.path.exists("lightning_logs/live_metrics.json"):
                 import json
                 try:
@@ -375,11 +378,6 @@ def main():
                         
                 except Exception as e:
                     pass
-
-        if is_running:
-            import time
-            time.sleep(2)
-            st.rerun()
 
 if __name__ == "__main__":
     main()
