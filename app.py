@@ -335,6 +335,10 @@ def main():
                     if os.path.exists("lightning_logs/live_metrics.json"):
                         os.remove("lightning_logs/live_metrics.json")
                     
+                    os.makedirs("lightning_logs", exist_ok=True)
+                    with open("lightning_logs/running.flag", "w") as f:
+                        f.write("starting")
+                    
                     env = os.environ.copy()
                     subprocess.Popen([
                         "python", "train.py", 
