@@ -10,6 +10,84 @@ from models import CrossModalRetrievalModel
 from datasets import load_dataset
 from PIL import Image
 
+# ---------------------------------------------------------
+# Custom CSS for Premium, Academic UI
+# ---------------------------------------------------------
+CUSTOM_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* App Background / Global styles */
+.stApp {
+    background: linear-gradient(180deg, #F9FAFB 0%, #FFFFFF 100%);
+}
+
+/* Dramatic Title Gradient */
+h1 {
+    background: linear-gradient(120deg, #4F46E5, #9333EA);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800 !important;
+    letter-spacing: -1px;
+    margin-bottom: 0.5rem;
+}
+
+h2, h3 {
+    color: #1F2937;
+    font-weight: 600 !important;
+    letter-spacing: -0.5px;
+}
+
+/* Metric / Subtitle text styling */
+.stMarkdown p {
+    color: #4B5563;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
+/* Image Card Styling */
+img {
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+img:hover {
+    transform: scale(1.03) translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Sidebar styling */
+[data-testid="stSidebar"] {
+    background-color: #F3F4F6 !important;
+    border-right: 1px solid #E5E7EB;
+}
+[data-testid="stSidebar"] h1 {
+    -webkit-text-fill-color: #1F2937;
+    font-size: 1.5rem !important;
+}
+
+/* Similarity Badge */
+.sim-badge {
+    display: inline-block;
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 9999px;
+    background-color: #E0E7FF;
+    color: #3730A3;
+    margin-top: 8px;
+}
+</style>
+"""
+
 @st.cache_resource
 def load_encoders():
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
@@ -23,7 +101,6 @@ def load_encoders():
 @st.cache_resource
 def load_projection_model(checkpoint_path):
     if not os.path.exists(checkpoint_path):
-        st.warning(f"Checkpoint not found at {checkpoint_path}. Using uninitialized projection weights.")
         return CrossModalRetrievalModel(d_image=384, d_text=768, d_joint=512)
     return CrossModalRetrievalModel.load_from_checkpoint(checkpoint_path)
 
@@ -39,7 +116,6 @@ def load_dataset_metadata():
 def load_faiss_indices(data_dir="data"):
     test_pt = os.path.join(data_dir, "test_embeddings.pt")
     if not os.path.exists(test_pt):
-        st.error(f"{test_pt} not found. Please run precompute.py and train.py first.")
         return None, None, None, None
         
     data = torch.load(test_pt, map_location="cpu", weights_only=False)
@@ -47,7 +123,6 @@ def load_faiss_indices(data_dir="data"):
     text_embeddings = data["text_embeddings"].numpy()
     texts = data["texts"]
     indices = data["indices"]
-
     return image_embeddings, text_embeddings, texts, indices
 
 def _get_best_checkpoint():
@@ -55,61 +130,90 @@ def _get_best_checkpoint():
     if os.path.exists(ckpt_dir):
         ckpts = [f for f in os.listdir(ckpt_dir) if f.endswith(".ckpt")]
         if ckpts:
-            return os.path.join(ckpt_dir, ckpts[0]) # For production, parse val_recall to find max
+            return os.path.join(ckpt_dir, ckpts[0])
     return "dummy.ckpt"
 
 def main():
-    st.set_page_config(page_title="Cross-Modal Fashion Retrieval", layout="wide")
-    st.sidebar.title("Navigation")
+    st.set_page_config(page_title="Semantic Fashion Retrieval", layout="wide", page_icon="🛍️")
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
     
-    mode = st.sidebar.radio("Mode", ["Exploratory Data Analysis", "Text-to-Image", "Image-to-Text"])
+    # Navigation Sidebar
+    with st.sidebar:
+        st.title("Navigation")
+        st.write("Explore pedagogical cross-modal embedding spaces.")
+        st.divider()
+        mode = st.radio("Select View", ["📊 Exploratory Data Analysis", "🕵️‍♂️ Text-to-Image", "📸 Image-to-Text"])
+        st.divider()
+        st.caption("powered by PyTorch Lightning & FAISS")
+
+    # Main App Header
+    st.title("Semantic Fashion Retrieval")
     
-    st.title("Fashion Retrieval Application")
     dataset = load_dataset_metadata()
     
-    if mode == "Exploratory Data Analysis":
-        st.header("Exploratory Data Analysis")
-        st.write("Browse a random sample of the Fashion200k dataset.")
+    if mode == "📊 Exploratory Data Analysis":
+        st.subheader("Dataset Topography")
+        st.write("Browse a randomized sample representing the multi-modal distribution of the `Fashion200k` dataset, visualizing both visual assets and corresponding semantic annotations.")
+        
         sample_size = st.sidebar.slider("Sample Size", 10, 500, 50)
         
-        # Subsample for EDA
         import random
         random_indices = random.sample(range(len(dataset)), min(sample_size, len(dataset)))
         subset = dataset.select(random_indices)
-        
         df = subset.to_pandas()
+        
         text_col = next((c for c in df.columns if c.lower() in ["text", "caption", "title", "description"]), None)
         if text_col:
             df["word_count"] = df[text_col].apply(lambda x: len(str(x).split()))
             
-            # Simple histogram using Altair
-            chart = alt.Chart(df).mark_bar().encode(
-                alt.X("word_count:Q", bin=True, title="Word Count in Description"),
-                alt.Y("count()", title="Frequency")
-            ).properties(title="Distribution of Description Lengths")
-            st.altair_chart(chart, use_container_width=True)
-            
-        st.subheader("Data Samples")
-        cols = st.columns(4)
+            with st.container():
+                st.markdown("### Description Length Distribution")
+                chart = alt.Chart(df).mark_area(
+                    line={'color':'#4F46E5'},
+                    color=alt.Gradient(
+                        gradient='linear',
+                        stops=[alt.GradientStop(color='#4F46E5', offset=0),
+                               alt.GradientStop(color='#9333EA', offset=1)],
+                        x1=1, x2=1, y1=1, y2=0
+                    )
+                ).encode(
+                    alt.X("word_count:Q", bin=alt.Bin(maxbins=20), title="Word Count"),
+                    alt.Y("count()", title="Frequency Density"),
+                    tooltip=["count()"]
+                ).properties(height=250)
+                st.altair_chart(chart, use_container_width=True)
+
+        st.markdown("### Sample Embeddings View")
+        cols = st.columns(4, gap="large")
         for i, idx in enumerate(random_indices[:12]):
             with cols[i % 4]:
                 item = dataset[idx]
                 st.image(item["image"], use_container_width=True)
-                st.caption(item.get(text_col, "") if text_col else "")
+                cap_text = item.get(text_col, "") if text_col else ""
+                st.markdown(f"<div style='text-align: center; font-style: italic; color: #6B7280; font-size: 0.9em; margin-top: 8px;'>\"{cap_text}\"</div>", unsafe_allow_html=True)
 
-    elif mode == "Text-to-Image":
-        st.header("Text-to-Image Retrieval")
-        query = st.text_input("Enter a query (e.g., 'white t-shirt with print')")
-        k = st.sidebar.slider("Number of results", 1, 20, 5)
+    elif mode == "🕵️‍♂️ Text-to-Image":
+        st.subheader("Text-to-Image Search")
+        st.write("Enter a semantic query to search the joint index. The DINOv2 visual space has been aligned with the Nomic text boundaries.")
         
-        if query:
-            vis_processor, vis_model, txt_tokenizer, txt_model, device = load_encoders()
-            checkpoint_path = _get_best_checkpoint()
-            model = load_projection_model(checkpoint_path)
-            model.to(device).eval()
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            query = st.text_input("Semantic Query", placeholder="e.g., 'a casual blue denim jacket'", label_visibility="collapsed")
+        with col2:
+            k = st.slider("Retrievals ($K$)", 1, 20, 5, label_visibility="collapsed")
             
-            image_embeddings, _, _, indices = load_faiss_indices()
-            if image_embeddings is not None:
+        if query:
+            with st.spinner("Embedding query and traversing FAISS index..."):
+                vis_processor, vis_model, txt_tokenizer, txt_model, device = load_encoders()
+                checkpoint_path = _get_best_checkpoint()
+                model = load_projection_model(checkpoint_path)
+                model.to(device).eval()
+                
+                image_embeddings, _, _, indices = load_faiss_indices()
+                if image_embeddings is None:
+                    st.error("No built FAISS index. Did you run the precomputation and training loops?")
+                    return
+
                 with torch.no_grad():
                     txt_inputs = txt_tokenizer([f"search_query: {query}"], padding=True, truncation=True, return_tensors="pt").to(device)
                     txt_outputs = txt_model(**txt_inputs)
@@ -122,8 +226,6 @@ def main():
                     
                     joint_query = model.forward_text(txt_embeds).cpu().numpy()
                     
-                    # Project image precomputed base embeddings through the W_image projection layer
-                    # Batch processing to prevent OOM
                     projected_img_list = []
                     for i in range(0, len(image_embeddings), 5000):
                         batch = torch.tensor(image_embeddings[i:i+5000]).to(device)
@@ -136,60 +238,77 @@ def main():
                     
                     distances, I = index.search(joint_query, k)
                     
-                    st.subheader(f"Top {k} matches:")
-                    cols = st.columns(min(k, 5))
-                    for i, (dist, idx) in enumerate(zip(distances[0], I[0])):
-                        col_idx = i % 5
-                        orig_idx = indices[idx]
-                        if i > 0 and col_idx == 0:
-                            cols = st.columns(5)
-                        with cols[col_idx]:
-                            item = dataset[int(orig_idx)]
-                            st.image(item["image"], use_container_width=True)
-                            text_col = next((c for c in item.keys() if c.lower() in ["text", "caption", "title", "description"]), None)
-                            st.caption(item.get(text_col, ""))
-                            st.write(f"Similarity: {dist:.3f}")
+            st.markdown(f"**Top {k} Ranked Visual Matches:**")
+            cols = st.columns(min(k, 5), gap="large")
+            for i, (dist, idx) in enumerate(zip(distances[0], I[0])):
+                col_idx = i % 5
+                orig_idx = indices[idx]
+                if i > 0 and col_idx == 0:
+                    cols = st.columns(5, gap="large")
+                with cols[col_idx]:
+                    item = dataset[int(orig_idx)]
+                    st.image(item["image"], use_container_width=True)
+                    text_col = next((c for c in item.keys() if c.lower() in ["text", "caption", "title", "description"]), None)
+                    cap = item.get(text_col, "")
+                    st.markdown(f"<p style='text-align:center; font-style:italic; font-size:0.85em;'>{cap}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center;'><span class='sim-badge'>cos sim: {dist:.3f}</span></div>", unsafe_allow_html=True)
 
-    elif mode == "Image-to-Text":
-        st.header("Image-to-Text Retrieval")
-        uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-        k = st.sidebar.slider("Number of results", 1, 20, 5)
+    elif mode == "📸 Image-to-Text":
+        st.subheader("Image-to-Text Reverse Search")
+        st.write("Upload a target graphic. The aligned joint space will construct a localized semantic neighborhood.")
+        
+        k = st.sidebar.slider("Number of results", 1, 15, 5)
+        
+        uploaded_file = st.file_uploader("Drop Image File", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
         
         if uploaded_file is not None:
             image = Image.open(uploaded_file).convert("RGB")
-            st.image(image, width=200)
             
-            vis_processor, vis_model, txt_tokenizer, txt_model, device = load_encoders()
-            checkpoint_path = _get_best_checkpoint()
-            model = load_projection_model(checkpoint_path)
-            model.to(device).eval()
+            # Display uploaded image beautifully
+            col1, col2 = st.columns([1, 2], gap="large")
+            with col1:
+                st.image(image, caption="Query Image", use_container_width=True)
             
-            _, text_embeddings, texts, _ = load_faiss_indices()
-            if text_embeddings is not None:
-                with torch.no_grad():
-                    vis_inputs = vis_processor(images=[image], return_tensors="pt").to(device)
-                    vis_outputs = vis_model(**vis_inputs)
-                    vis_embeds = vis_outputs.last_hidden_state[:, 0, :]
-                    vis_embeds = F.normalize(vis_embeds, p=2, dim=1)
+            with col2:
+                with st.spinner("Iterating Image Graph Traversal..."):
+                    vis_processor, vis_model, txt_tokenizer, txt_model, device = load_encoders()
+                    checkpoint_path = _get_best_checkpoint()
+                    model = load_projection_model(checkpoint_path)
+                    model.to(device).eval()
                     
-                    joint_query = model.forward_image(vis_embeds).cpu().numpy()
+                    _, text_embeddings, texts, _ = load_faiss_indices()
+                    if text_embeddings is None:
+                        st.error("No built FAISS index.")
+                        return
+
+                    with torch.no_grad():
+                        vis_inputs = vis_processor(images=[image], return_tensors="pt").to(device)
+                        vis_outputs = vis_model(**vis_inputs)
+                        vis_embeds = vis_outputs.last_hidden_state[:, 0, :]
+                        vis_embeds = F.normalize(vis_embeds, p=2, dim=1)
+                        
+                        joint_query = model.forward_image(vis_embeds).cpu().numpy()
+                        
+                        projected_txt_list = []
+                        for i in range(0, len(text_embeddings), 5000):
+                            batch = torch.tensor(text_embeddings[i:i+5000]).to(device)
+                            proj = model.forward_text(batch).cpu().numpy()
+                            projected_txt_list.append(proj)
+                        projected_txt = np.concatenate(projected_txt_list, axis=0)
+                        
+                        index = faiss.IndexFlatIP(projected_txt.shape[1])
+                        index.add(projected_txt)
+                        
+                        distances, I = index.search(joint_query, k)
                     
-                    # Project text precomputed embeddings through the W_text projection layer
-                    projected_txt_list = []
-                    for i in range(0, len(text_embeddings), 5000):
-                        batch = torch.tensor(text_embeddings[i:i+5000]).to(device)
-                        proj = model.forward_text(batch).cpu().numpy()
-                        projected_txt_list.append(proj)
-                    projected_txt = np.concatenate(projected_txt_list, axis=0)
-                    
-                    index = faiss.IndexFlatIP(projected_txt.shape[1])
-                    index.add(projected_txt)
-                    
-                    distances, I = index.search(joint_query, k)
-                    
-                    st.subheader(f"Top {k} textual matches:")
+                    st.markdown("#### Predicted Alignments:")
                     for idx, dist in zip(I[0], distances[0]):
-                        st.write(f"**Similarity: {dist:.3f}** -> {texts[idx]}")
+                        st.markdown(f"""
+                        <div style="background: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; font-size: 1.05em; color: #111827;">{texts[idx].replace('search_document:', '').strip()}</span>
+                            <span class='sim-badge'>cos sim: {dist:.3f}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
