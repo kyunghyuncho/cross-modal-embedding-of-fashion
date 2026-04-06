@@ -142,7 +142,7 @@ def main():
         st.title("Navigation")
         st.write("Explore pedagogical cross-modal embedding spaces.")
         st.divider()
-        mode = st.radio("Select View", ["📊 Exploratory Data Analysis", "🕵️‍♂️ Text-to-Image", "📸 Image-to-Text"])
+        mode = st.radio("Select View", ["📊 Exploratory Data Analysis", "🕵️‍♂️ Text-to-Image", "📸 Image-to-Text", "🚀 Model Training"])
         st.divider()
         st.caption("powered by PyTorch Lightning & FAISS")
 
@@ -309,6 +309,77 @@ def main():
                             <span class='sim-badge'>cos sim: {dist:.3f}</span>
                         </div>
                         """, unsafe_allow_html=True)
+                        
+    elif mode == "🚀 Model Training":
+        st.subheader("Interactive Model Training")
+        st.write("Orchestrate the cross-modal projection layer tuning natively. Metrics will stream live below.")
+        
+        is_running = os.path.exists("lightning_logs/running.flag")
+        
+        col1, col2 = st.columns([1, 1], gap="large")
+        with col1:
+            st.markdown("### Hyperparameters")
+            if not is_running:
+                epochs = st.number_input("Max Epochs", min_value=1, max_value=100, value=20)
+                batch_size = st.number_input("Batch Size", min_value=8, max_value=1024, value=256)
+                lr = st.number_input("Learning Rate", min_value=1e-5, max_value=1e-2, value=1e-3, format="%.5f")
+                
+                if st.button("▶️ Start Training", type="primary", use_container_width=True):
+                    import subprocess
+                    if os.path.exists("lightning_logs/stop.flag"):
+                        os.remove("lightning_logs/stop.flag")
+                    if os.path.exists("lightning_logs/live_metrics.json"):
+                        os.remove("lightning_logs/live_metrics.json")
+                    
+                    env = os.environ.copy()
+                    subprocess.Popen([
+                        "python", "train.py", 
+                        "--epochs", str(epochs),
+                        "--batch_size", str(batch_size),
+                        "--lr", str(lr)
+                    ], env=env)
+                    import time
+                    time.sleep(1)
+                    st.rerun()
+            else:
+                st.info("Training is currently active in the background.")
+                if st.button("⏹️ Stop Training", type="primary", use_container_width=True):
+                    with open("lightning_logs/stop.flag", "w") as f:
+                        f.write("stop")
+                    st.warning("Stop signal sent. Waiting for batch completion...")
+                    import time
+                    time.sleep(2)
+                    st.rerun()
+                    
+        with col2:
+            st.markdown("### Live Optimization Metrics")
+            if os.path.exists("lightning_logs/live_metrics.json"):
+                import json
+                try:
+                    with open("lightning_logs/live_metrics.json", "r") as f:
+                        metrics = json.load(f)
+                    
+                    if metrics.get("train_loss"):
+                        import pandas as pd
+                        df_loss = pd.DataFrame(metrics["train_loss"]).set_index("step")
+                        st.markdown("**Train Loss**")
+                        st.line_chart(df_loss, y="value", height=200)
+                    else:
+                        st.write("Waiting for first training batch...")
+                        
+                    if metrics.get("val_recall@5"):
+                        import pandas as pd
+                        df_val = pd.DataFrame(metrics["val_recall@5"]).set_index("step")
+                        st.markdown("**Validation Recall@5**")
+                        st.line_chart(df_val, y="value", color="#9333EA", height=200)
+                        
+                except Exception as e:
+                    pass
+
+        if is_running:
+            import time
+            time.sleep(2)
+            st.rerun()
 
 if __name__ == "__main__":
     main()
