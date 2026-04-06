@@ -125,7 +125,7 @@ def load_faiss_indices(data_dir="data"):
     indices = data["indices"]
     return image_embeddings, text_embeddings, texts, indices
 
-def _get_best_checkpoint():
+def get_checkpoint_options():
     ckpt_dir = "lightning_logs/checkpoints"
     if os.path.exists(ckpt_dir):
         ckpts = [f for f in os.listdir(ckpt_dir) if f.endswith(".ckpt")]
@@ -146,8 +146,8 @@ def _get_best_checkpoint():
                 ckpts.sort(key=lambda x: os.path.getmtime(os.path.join(ckpt_dir, x)), reverse=True)
                 best_ckpt = ckpts[0]
                 
-            return os.path.join(ckpt_dir, best_ckpt)
-    return "dummy.ckpt"
+            return ckpts, best_ckpt
+    return [], None
 
 def main():
     st.set_page_config(page_title="Semantic Fashion Retrieval", layout="wide", page_icon="🛍️")
@@ -159,6 +159,15 @@ def main():
         st.write("Explore pedagogical cross-modal embedding spaces.")
         st.divider()
         mode = st.radio("Select View", ["📊 Exploratory Data Analysis", "🕵️‍♂️ Text-to-Image", "📸 Image-to-Text", "🚀 Model Training"])
+        st.divider()
+        ckpts, best_ckpt = get_checkpoint_options()
+        if ckpts:
+            default_index = ckpts.index(best_ckpt) if best_ckpt in ckpts else 0
+            selected_ckpt = st.selectbox("🧠 Projection Weights", ckpts, index=default_index)
+            checkpoint_path = os.path.join("lightning_logs/checkpoints", selected_ckpt)
+        else:
+            st.warning("No checkpoints found.")
+            checkpoint_path = "dummy.ckpt"
         st.divider()
         st.caption("powered by PyTorch Lightning & FAISS")
 
@@ -225,7 +234,6 @@ def main():
         if query:
             with st.spinner("Embedding query and traversing FAISS index..."):
                 vis_processor, vis_model, txt_tokenizer, txt_model, device = load_encoders()
-                checkpoint_path = _get_best_checkpoint()
                 model = load_projection_model(checkpoint_path)
                 model.to(device).eval()
                 
@@ -292,7 +300,6 @@ def main():
             with col2:
                 with st.spinner("Iterating Image Graph Traversal..."):
                     vis_processor, vis_model, txt_tokenizer, txt_model, device = load_encoders()
-                    checkpoint_path = _get_best_checkpoint()
                     model = load_projection_model(checkpoint_path)
                     model.to(device).eval()
                     
