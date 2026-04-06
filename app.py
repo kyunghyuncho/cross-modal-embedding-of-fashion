@@ -130,7 +130,23 @@ def _get_best_checkpoint():
     if os.path.exists(ckpt_dir):
         ckpts = [f for f in os.listdir(ckpt_dir) if f.endswith(".ckpt")]
         if ckpts:
-            return os.path.join(ckpt_dir, ckpts[0])
+            best_ckpt = None
+            best_score = -1.0
+            for ckpt in ckpts:
+                try:
+                    score_str = ckpt.split("val_recall@5=")[1].replace(".ckpt", "")
+                    score = float(score_str)
+                    if score > best_score:
+                        best_score = score
+                        best_ckpt = ckpt
+                except Exception:
+                    pass
+            
+            if best_ckpt is None:
+                ckpts.sort(key=lambda x: os.path.getmtime(os.path.join(ckpt_dir, x)), reverse=True)
+                best_ckpt = ckpts[0]
+                
+            return os.path.join(ckpt_dir, best_ckpt)
     return "dummy.ckpt"
 
 def main():
