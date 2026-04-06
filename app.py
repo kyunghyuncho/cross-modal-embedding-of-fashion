@@ -353,31 +353,35 @@ def main():
                     
         with col2:
             st.markdown("### Live Optimization Metrics")
-            if is_running:
-                st.button("🔄 Check Latest Metrics", use_container_width=True)
-                
-            if os.path.exists("lightning_logs/live_metrics.json"):
-                import json
-                try:
-                    with open("lightning_logs/live_metrics.json", "r") as f:
-                        metrics = json.load(f)
-                    
-                    if metrics.get("train_loss"):
-                        import pandas as pd
-                        df_loss = pd.DataFrame(metrics["train_loss"]).set_index("step")
-                        st.markdown("**Train Loss**")
-                        st.line_chart(df_loss, y="value", height=200)
-                    else:
-                        st.write("Waiting for first training batch...")
+            
+            run_interval = "2s" if is_running else None
+            
+            @st.fragment(run_every=run_interval)
+            def render_live_metrics():
+                if os.path.exists("lightning_logs/live_metrics.json"):
+                    import json
+                    try:
+                        with open("lightning_logs/live_metrics.json", "r") as f:
+                            metrics = json.load(f)
                         
-                    if metrics.get("val_recall@5"):
-                        import pandas as pd
-                        df_val = pd.DataFrame(metrics["val_recall@5"]).set_index("step")
-                        st.markdown("**Validation Recall@5**")
-                        st.line_chart(df_val, y="value", color="#9333EA", height=200)
-                        
-                except Exception as e:
-                    pass
+                        if metrics.get("train_loss"):
+                            import pandas as pd
+                            df_loss = pd.DataFrame(metrics["train_loss"]).set_index("step")
+                            st.markdown("**Train Loss**")
+                            st.line_chart(df_loss, y="value", height=200)
+                        else:
+                            st.write("Waiting for first training batch...")
+                            
+                        if metrics.get("val_recall@5"):
+                            import pandas as pd
+                            df_val = pd.DataFrame(metrics["val_recall@5"]).set_index("step")
+                            st.markdown("**Validation Recall@5**")
+                            st.line_chart(df_val, y="value", color="#9333EA", height=200)
+                            
+                    except Exception as e:
+                        pass
+            
+            render_live_metrics()
 
 if __name__ == "__main__":
     main()
