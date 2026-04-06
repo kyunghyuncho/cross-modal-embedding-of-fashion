@@ -1,0 +1,12 @@
+torch
+torchvision
+pytorch-lightning
+streamlit
+transformers
+datasets
+pandas
+scikit-learn
+faiss-cpu
+altair
+einops
+
